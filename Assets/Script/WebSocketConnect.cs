@@ -8,6 +8,12 @@ public class WebSocketConnect : MonoBehaviour
 {
     private ClientWebSocket client;
 
+    [Serializable]
+    public class Message
+    {
+        public string Type;
+    }
+
     async void Start()
     {
         client = new ClientWebSocket();
@@ -18,10 +24,19 @@ public class WebSocketConnect : MonoBehaviour
 
         Debug.Log("connected");
 
-        var message = "Hello";
-        var bytes = Encoding.UTF8.GetBytes(message);
+        var message = new Message
+        {
+            Type = "connect"
+        };
+
+        var json = JsonUtility.ToJson(message);
+        
+        Debug.Log(json);
+
+        var bytes = Encoding.UTF8.GetBytes(json);
+
         await client.SendAsync(
-            bytes,
+            new ArraySegment<byte>(bytes),
             WebSocketMessageType.Text,
             true,
             CancellationToken.None);
@@ -39,6 +54,8 @@ public class WebSocketConnect : MonoBehaviour
             0,
             result.Count
         );
+
         Debug.Log(response);
+        
     }
 }
