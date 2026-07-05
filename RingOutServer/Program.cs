@@ -2,7 +2,6 @@ using System.Text;
 using System.Net.WebSockets;
 using System.Text.Json;
 
-
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
@@ -10,30 +9,34 @@ app.UseWebSockets();
 
 app.Map("/ws", async context =>
 {
-
     if (context.WebSockets.IsWebSocketRequest)
     {
         using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
 
-        var buffer = new byte[1024];
-        var result = await webSocket.ReceiveAsync(
-            new ArraySegment<byte>(buffer),
-            CancellationToken.None
-            );
+        while (webSocket.State == WebSocketState.Open)
+        {
+            var buffer = new byte[1024];
+            var result = await webSocket.ReceiveAsync(
+                new ArraySegment<byte>(buffer),
+                CancellationToken.None
+                );
 
-        var message = Encoding.UTF8.GetString(
-            buffer,
-            0,
-            result.Count
-            );
+            var message = Encoding.UTF8.GetString(
+                buffer,
+                0,
+                result.Count
+                );
 
-        Console.WriteLine(message);
+            Console.WriteLine(message);
 
-        var request =
-            JsonSerializer.Deserialize<Message>(message);
+            var request =
+                JsonSerializer.Deserialize<Message>(message);
 
-        Console.WriteLine(request?.Type);
-
+            Console.WriteLine(request?.Type);
+            Console.WriteLine(request?.X);
+            Console.WriteLine(request?.Z);
+        }
+        
         var response = "OK";
         var bytes = Encoding.UTF8.GetBytes(response);
 
@@ -42,7 +45,7 @@ app.Map("/ws", async context =>
         WebSocketMessageType.Text,
         true,
         CancellationToken.None);
-        Console.WriteLine("send ok");
+        Console.WriteLine("send OK");
 
         await Task.Delay(-1);
     }
@@ -55,4 +58,6 @@ app.Run();
 public class Message
 {
     public string Type { get; set; } = "";
+    public float X { get; set; }
+    public float Z { get; set; }
 }

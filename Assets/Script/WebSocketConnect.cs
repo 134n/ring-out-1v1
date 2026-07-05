@@ -2,19 +2,25 @@ using System;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using UnityEngine;
 
 public class WebSocketConnect : MonoBehaviour
 {
     private ClientWebSocket client;
 
+    [SerializeField]
+    private Transform player;
+
     [Serializable]
     public class Message
     {
         public string Type;
+        public float X;
+        public float Z;
     }
 
-    async void Start()
+    async Task Start()
     {
         client = new ClientWebSocket();
 
@@ -24,24 +30,11 @@ public class WebSocketConnect : MonoBehaviour
 
         Debug.Log("connected");
 
-        var message = new Message
+        while (client.State == WebSocketState.Open)
         {
-            Type = "connect"
-        };
-
-        var json = JsonUtility.ToJson(message);
-        
-        Debug.Log(json);
-
-        var bytes = Encoding.UTF8.GetBytes(json);
-
-        await client.SendAsync(
-            new ArraySegment<byte>(bytes),
-            WebSocketMessageType.Text,
-            true,
-            CancellationToken.None);
-
-        Debug.Log("Send Hello");
+            await SendPositionAsync();
+            await Task.Delay(2000);
+        }
 
         var buffer = new byte[1024];
         var result = await client.ReceiveAsync(
@@ -56,6 +49,26 @@ public class WebSocketConnect : MonoBehaviour
         );
 
         Debug.Log(response);
-        
+    }
+    private async Task SendPositionAsync()
+    {
+        var message = new Message
+            {
+                Type = "Move",
+                X = player.transform.position.x,
+                Z = player.transform.position.z
+            };
+
+            var json = JsonUtility.ToJson(message);
+
+            Debug.Log(json);
+
+            var bytes = Encoding.UTF8.GetBytes(json);
+
+            await client.SendAsync(
+                new ArraySegment<byte>(bytes),
+                WebSocketMessageType.Text,
+                true,
+                CancellationToken.None);
     }
 }
