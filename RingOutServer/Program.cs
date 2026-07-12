@@ -21,6 +21,17 @@ app.Map("/ws", async context =>
                 CancellationToken.None
                 );
 
+            if (result.MessageType == WebSocketMessageType.Close)
+            {
+                Console.WriteLine("Client disconnected");
+                await webSocket.CloseAsync(
+                    WebSocketCloseStatus.NormalClosure,
+                    "Server closing",
+                    CancellationToken.None
+                );
+                return;
+            }
+
             var message = Encoding.UTF8.GetString(
                 buffer,
                 0,
@@ -36,7 +47,7 @@ app.Map("/ws", async context =>
             Console.WriteLine(request?.X);
             Console.WriteLine(request?.Z);
         }
-        
+
         var response = "OK";
         var bytes = Encoding.UTF8.GetBytes(response);
 
