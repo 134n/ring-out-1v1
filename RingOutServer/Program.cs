@@ -1,9 +1,12 @@
 using System.Text;
 using System.Net.WebSockets;
 using System.Text.Json;
+using System.Threading;
+using System;
 
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
+var clients = new List<WebSocket>();
 
 app.UseWebSockets();
 
@@ -12,6 +15,8 @@ app.Map("/ws", async context =>
     if (context.WebSockets.IsWebSocketRequest)
     {
         using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+        clients.Add(webSocket);
+        Console.WriteLine($"Connected: {clients.Count}");
 
         while (webSocket.State == WebSocketState.Open)
         {
@@ -24,11 +29,14 @@ app.Map("/ws", async context =>
             if (result.MessageType == WebSocketMessageType.Close)
             {
                 Console.WriteLine("Client disconnected");
+                
                 await webSocket.CloseAsync(
                     WebSocketCloseStatus.NormalClosure,
                     "Server closing",
                     CancellationToken.None
                 );
+                clients.Remove(webSocket);
+
                 return;
             }
 
@@ -46,19 +54,25 @@ app.Map("/ws", async context =>
             Console.WriteLine(request?.Type);
             Console.WriteLine(request?.X);
             Console.WriteLine(request?.Z);
+
+            foreach(var client in clients)
+            {
+                if(client == webSocket)
+                continue;
+
+                if(client.State != WebSocketState.Open)
+                continue;
+
+                var bytes = Encoding.UTF8.GetBytes(message);
+                await client.SendAsync(
+                    new ArraySegment<byte>(bytes),
+                    WebSocketMessageType.Text,
+                    true,
+                    CancellationToken.None);
+
+                Console.WriteLine("B send OK");
+            }
         }
-
-        var response = "OK";
-        var bytes = Encoding.UTF8.GetBytes(response);
-
-        await webSocket.SendAsync(
-        new ArraySegment<byte>(bytes),
-        WebSocketMessageType.Text,
-        true,
-        CancellationToken.None);
-        Console.WriteLine("send OK");
-
-        await Task.Delay(-1);
     }
 });
 
