@@ -2,31 +2,42 @@ using System;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using UnityEngine;
 
 public class WebSocketConnect : MonoBehaviour
 {
     private ClientWebSocket client;
 
-    async void Start()
+    [SerializeField]
+    private Transform player;
+
+    private CancellationTokenSource cts;
+
+    [Serializable]
+    public class Message
     {
+        public string Type;
+        public float X;
+        public float Z;
+    }
+
+    async Task Start()
+    {
+        cts = new CancellationTokenSource();
         client = new ClientWebSocket();
 
         await client.ConnectAsync(
             new Uri("ws://localhost:5288/ws"),
-            CancellationToken.None);
+            cts.Token);
 
         Debug.Log("connected");
 
-        var message = "Hello";
-        var bytes = Encoding.UTF8.GetBytes(message);
-        await client.SendAsync(
-            bytes,
-            WebSocketMessageType.Text,
-            true,
-            CancellationToken.None);
-
-        Debug.Log("Send Hello");
+        while (client.State == WebSocketState.Open)
+        {
+            await SendPositionAsync();
+            await Task.Delay(2000, cts.Token);
+        }
 
         var buffer = new byte[1024];
         var result = await client.ReceiveAsync(
@@ -39,6 +50,47 @@ public class WebSocketConnect : MonoBehaviour
             0,
             result.Count
         );
+
         Debug.Log(response);
+    }
+
+    private async Task SendPositionAsync()
+    {
+        var message = new Message
+        {
+            Type = "Move",
+            X = player.transform.position.x,
+            Z = player.transform.position.z
+        };
+
+        var json = JsonUtility.ToJson(message);
+
+        Debug.Log(json);
+
+        var bytes = Encoding.UTF8.GetBytes(json);
+
+        await client.SendAsync(
+            new ArraySegment<byte>(bytes),
+            WebSocketMessageType.Text,
+            true,
+            CancellationToken.None);
+    }
+
+    private async void OnDestroy()
+    {
+        cts?.Cancel();
+
+        if (client != null && client.State == WebSocketState.Open)
+        {
+            await client.CloseAsync(
+                WebSocketCloseStatus.NormalClosure,
+                "Unity Stop",
+                CancellationToken.None
+            );
+
+            client.Dispose();
+        }
+
+        Debug.Log("Unity Stop");
     }
 }
