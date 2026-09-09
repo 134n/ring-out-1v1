@@ -33,29 +33,19 @@ public class WebSocketConnect : MonoBehaviour
 
         Debug.Log("connected");
 
+        _ = ReceiveLoop();
+
         while (client.State == WebSocketState.Open)
         {
             await SendPositionAsync();
             await Task.Delay(2000, cts.Token);
         }
-
-        var buffer = new byte[1024];
-        var result = await client.ReceiveAsync(
-            new ArraySegment<byte>(buffer),
-            CancellationToken.None
-            );
-
-        var response = Encoding.UTF8.GetString(
-            buffer,
-            0,
-            result.Count
-        );
-
-        Debug.Log(response);
     }
 
     private async Task SendPositionAsync()
     {
+        if (playerType == null) return;
+
         var message = new Message
         {
             Type = "Move",
@@ -74,6 +64,25 @@ public class WebSocketConnect : MonoBehaviour
             WebSocketMessageType.Text,
             true,
             CancellationToken.None);
+    }
+
+    async Task ReceiveLoop()
+    {
+        var buffer = new byte[1024];
+
+        while (client.State == WebSocketState.Open)
+        {
+            var result = await client.ReceiveAsync
+            (
+                new ArraySegment<byte>(buffer),
+                cts.Token);
+
+            var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+
+            Debug.Log(message);
+            var receiveMessage = JsonUtility.FromJson<Message>(message);
+
+        }
     }
 
     private async void OnDestroy()
