@@ -12,12 +12,17 @@ public class WebSocketConnect : MonoBehaviour
     [SerializeField]
     private Transform player;
 
+    [SerializeField]
+    private Transform otherPlayer;
+
+    private string playerType;
+
     private CancellationTokenSource cts;
 
-    [Serializable]
     public class Message
     {
         public string Type;
+        public string PlayerType;
         public float X;
         public float Z;
     }
@@ -49,6 +54,7 @@ public class WebSocketConnect : MonoBehaviour
         var message = new Message
         {
             Type = "Move",
+            PlayerType = playerType,
             X = player.transform.position.x,
             Z = player.transform.position.z
         };
@@ -82,6 +88,20 @@ public class WebSocketConnect : MonoBehaviour
             Debug.Log(message);
             var receiveMessage = JsonUtility.FromJson<Message>(message);
 
+            if (receiveMessage.Type == "PlayerType")
+            {
+                playerType = receiveMessage.PlayerType.ToString();
+            }
+            Debug.Log(receiveMessage.PlayerType);
+            if (receiveMessage.Type != "Move") continue;
+
+            //var playerType = receiveMessage.PlayerType;//受け取ったタイプ
+            if (receiveMessage.PlayerType != playerType)/*順番で決められたAorB*//*自分(AorB)*/
+            {//受け取った位置情報のタイプが自身と違うならばotherPlayerに割り当てる
+                otherPlayer.position = new Vector3(
+                receiveMessage.X, otherPlayer.position.y, receiveMessage.Z);
+            }
+            else { continue; }
         }
     }
 
