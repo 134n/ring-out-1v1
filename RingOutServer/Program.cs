@@ -50,23 +50,71 @@ app.Map("/ws", async context =>
             true,
             CancellationToken.None);
 
-            foreach(var client in clients)
+        try
+        {
+            while (webSocket.State == WebSocketState.Open)
             {
-                if(client == webSocket)
-                continue;
+                var buffer = new byte[1024];
+                var result = await webSocket.ReceiveAsync(
+                    new ArraySegment<byte>(buffer),
+                    CancellationToken.None
+                    );
 
-                if(client.State != WebSocketState.Open)
-                continue;
+                if (result.MessageType == WebSocketMessageType.Close)
+                {
+                    Console.WriteLine("Client disconnected");
 
-                var bytes = Encoding.UTF8.GetBytes(message);
-                await client.SendAsync(
-                    new ArraySegment<byte>(bytes),
-                    WebSocketMessageType.Text,
-                    true,
-                    CancellationToken.None);
+                    await webSocket.CloseAsync(
+                        WebSocketCloseStatus.NormalClosure,
+                        "Server closing",
+                        CancellationToken.None
+                    );
+                    clients.Remove(client);
 
-                Console.WriteLine("B send OK");
+                    return;
+                }
+
+                var message = Encoding.UTF8.GetString(
+                    buffer,
+                    0,
+                    result.Count
+                    );
+
+                Console.WriteLine(message);
+
+                var request =
+                    JsonSerializer.Deserialize<Message>(message);
+
+                Console.WriteLine(request?.Type);
+                Console.WriteLine(request?.PlayerType);
+                Console.WriteLine(request?.X);
+                Console.WriteLine(request?.Z);
+
+                foreach (var targetClient in clients)
+                {
+                    if (targetClient.WebSocket == webSocket)
+                        continue;
+
+                    if (targetClient.WebSocket.State != WebSocketState.Open)
+                        continue;
+
+                    var sendBytes = Encoding.UTF8.GetBytes(message);
+                    await targetClient.WebSocket.SendAsync(
+                        new ArraySegment<byte>(sendBytes),
+                        WebSocketMessageType.Text,
+                        true,
+                        CancellationToken.None);
+
+                    Console.WriteLine("B send OK");
+                }
             }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e.Message);
+
+            clients.Remove(client);
+            return;
         }
     }
 });
