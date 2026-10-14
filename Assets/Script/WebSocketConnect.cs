@@ -12,12 +12,17 @@ public class WebSocketConnect : MonoBehaviour
     [SerializeField]
     private Transform player;
 
+    [SerializeField]
+    private Transform otherPlayer;
+
+    private string playerType;
+
     private CancellationTokenSource cts;
 
-    [Serializable]
     public class Message
     {
         public string Type;
+        public string PlayerType;
         public float X;
         public float Z;
     }
@@ -33,32 +38,23 @@ public class WebSocketConnect : MonoBehaviour
 
         Debug.Log("connected");
 
+        _ = ReceiveLoop();
+
         while (client.State == WebSocketState.Open)
         {
             await SendPositionAsync();
             await Task.Delay(2000, cts.Token);
         }
-
-        var buffer = new byte[1024];
-        var result = await client.ReceiveAsync(
-            new ArraySegment<byte>(buffer),
-            CancellationToken.None
-            );
-
-        var response = Encoding.UTF8.GetString(
-            buffer,
-            0,
-            result.Count
-        );
-
-        Debug.Log(response);
     }
 
     private async Task SendPositionAsync()
     {
+        if (playerType == null) return;
+
         var message = new Message
         {
             Type = "Move",
+            PlayerType = playerType,
             X = player.transform.position.x,
             Z = player.transform.position.z
         };
@@ -74,6 +70,39 @@ public class WebSocketConnect : MonoBehaviour
             WebSocketMessageType.Text,
             true,
             CancellationToken.None);
+    }
+
+    async Task ReceiveLoop()
+    {
+        var buffer = new byte[1024];
+
+        while (client.State == WebSocketState.Open)
+        {
+            var result = await client.ReceiveAsync
+            (
+                new ArraySegment<byte>(buffer),
+                cts.Token);
+
+            var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+
+            Debug.Log(message);
+            var receiveMessage = JsonUtility.FromJson<Message>(message);
+
+            if (receiveMessage.Type == "PlayerType")
+            {
+                playerType = receiveMessage.PlayerType.ToString();
+            }
+            Debug.Log(receiveMessage.PlayerType);
+            if (receiveMessage.Type != "Move") continue;
+
+            //var playerType = receiveMessage.PlayerType;//受け取ったタイプ
+            if (receiveMessage.PlayerType != playerType)/*順番で決められたAorB*//*自分(AorB)*/
+            {//受け取った位置情報のタイプが自身と違うならばotherPlayerに割り当てる
+                otherPlayer.position = new Vector3(
+                receiveMessage.X, otherPlayer.position.y, receiveMessage.Z);
+            }
+            else { continue; }
+        }
     }
 
     private async void OnDestroy()
